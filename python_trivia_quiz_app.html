@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Python Trivia Quiz Game | Aarav Agrawal</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- PyScript CSS & JS for running Python in the browser -->
+    <link rel="stylesheet" href="https://pyscript.net/releases/2023.11.1/core.css">
+    <script type="module" src="https://pyscript.net/releases/2023.11.1/core.js"></script>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --accent-green: #10b981;
+            --accent-blue: #38bdf8;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: #334155;
+            --danger: #ef4444;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .quiz-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5);
+        }
+
+        .badge-py {
+            background: rgba(56, 189, 248, 0.1);
+            color: var(--accent-blue);
+            border: 1px solid var(--accent-blue);
+        }
+
+        .option-btn {
+            background: #0f172a;
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+            transition: all 0.2s ease;
+        }
+
+        .option-btn:hover:not(:disabled) {
+            border-color: var(--accent-blue);
+            background: rgba(56, 189, 248, 0.08);
+            transform: translateY(-1px);
+        }
+
+        .option-btn.correct {
+            background: rgba(16, 185, 129, 0.2) !important;
+            border-color: var(--accent-green) !important;
+            color: var(--accent-green) !important;
+            font-weight: 600;
+        }
+
+        .option-btn.incorrect {
+            background: rgba(239, 68, 68, 0.2) !important;
+            border-color: var(--danger) !important;
+            color: var(--danger) !important;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+<div class="quiz-card w-full max-w-lg p-6 sm:p-8">
+    <header class="text-center mb-6">
+        <h1 class="text-2xl sm:text-3xl font-bold text-sky-400 mb-2">Python Trivia Quiz Game</h1>
+        <div class="flex items-center justify-center gap-2">
+            <span class="badge-py text-xs font-semibold px-3 py-1 rounded-full">Player: Aarav Agrawal</span>
+            <span class="bg-emerald-950 text-emerald-400 border border-emerald-500 text-xs font-semibold px-3 py-1 rounded-full">Powered by WebAssembly Python</span>
+        </div>
+    </header>
+
+    <!-- Python Initialization Loader -->
+    <div id="loadingScreen" class="text-center py-8">
+        <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-sky-400 border-t-transparent mb-4"></div>
+        <p class="text-slate-400 font-medium">Initializing Python Engine in Browser...</p>
+        <p class="text-xs text-slate-500 mt-2">Loading PyScript runtime environment</p>
+    </div>
+
+    <!-- Active Quiz View -->
+    <div id="quizScreen" class="hidden">
+        <div id="questionProgress" class="text-xs font-medium text-slate-400 mb-2"></div>
+        <div id="questionText" class="text-base sm:text-lg font-semibold mb-6 text-slate-100 leading-snug"></div>
+        
+        <div id="optionsList" class="flex flex-col gap-3 mb-6">
+            <!-- Dynamically populated options -->
+        </div>
+
+        <div id="feedbackArea" class="text-sm font-semibold mb-6 min-h-[28px] flex items-center"></div>
+
+        <button id="nextBtn" class="py-3 px-4 w-full bg-sky-400 text-slate-900 rounded-lg font-bold text-base hover:opacity-90 transition hidden shadow-lg shadow-sky-400/20">
+            Next Question
+        </button>
+    </div>
+
+    <!-- Results Screen -->
+    <div id="resultsScreen" class="hidden text-center">
+        <h2 class="text-2xl font-bold text-emerald-400 mb-4">Quiz Complete! 🎉</h2>
+        <div class="bg-slate-900 border border-slate-700 rounded-xl p-5 mb-6 text-left space-y-3">
+            <div class="flex justify-between items-center text-sm border-b border-slate-800 pb-2">
+                <span class="text-slate-400">Player Name</span>
+                <span class="font-bold text-slate-100">Aarav Agrawal</span>
+            </div>
+            <div class="flex justify-between items-center text-sm border-b border-slate-800 pb-2">
+                <span class="text-slate-400">Final Score</span>
+                <span id="finalScore" class="font-bold text-slate-100">0 / 5</span>
+            </div>
+            <div class="flex justify-between items-center text-sm border-b border-slate-800 pb-2">
+                <span class="text-slate-400">Percentage</span>
+                <span id="finalPercentage" class="font-bold text-slate-100">0%</span>
+            </div>
+            <div class="flex justify-between items-center text-sm">
+                <span class="text-slate-400">Letter Grade</span>
+                <span id="finalGrade" class="font-bold text-slate-100">C</span>
+            </div>
+        </div>
+        <button id="restartBtn" class="py-3 px-4 w-full bg-sky-400 text-slate-900 rounded-lg font-bold text-base hover:opacity-90 transition shadow-lg shadow-sky-400/20">
+            Play Again
+        </button>
+    </div>
+</div>
+
+<!-- Python Logic Running Inside Browser -->
+<script type="py">
+from js import document, Element
+from pyodide.ffi import create_proxy
+
+class PythonQuizApp:
+    def __init__(self):
+        self.player_name = "Aarav Agrawal"
+        self.questions = [
+            {
+                "prompt": "Which of the following is used to define a block of code in Python?",
+                "options": ["A. Brackets {}", "B. Indentation", "C. Parentheses ()", "D. Semicolon ;"],
+                "answer": 1  # B
+            },
+            {
+                "prompt": "Which keyword is used to create a function in Python?",
+                "options": ["A. function", "B. define", "C. def", "D. fun"],
+                "answer": 2  # C
+            },
+            {
+                "prompt": "What data type is the result of: type(10)?",
+                "options": ["A. str", "B. int", "C. float", "D. bool"],
+                "answer": 1  # B
+            },
+            {
+                "prompt": "Which symbol is used for single-line comments in Python?",
+                "options": ["A. //", "B. /*", "C. #", "D. <!--"],
+                "answer": 2  # C
+            },
+            {
+                "prompt": "Which of these is a mutable (changeable) data type in Python?",
+                "options": ["A. Tuple", "B. String", "C. Integer", "D. List"],
+                "answer": 3  # D
+            }
+        ]
+        self.current_index = 0
+        self.score = 0
+        self.answered = False
+
+        # DOM Element References
+        self.loading_screen = document.getElementById("loadingScreen")
+        self.quiz_screen = document.getElementById("quizScreen")
+        self.results_screen = document.getElementById("resultsScreen")
+        
+        self.progress_el = document.getElementById("questionProgress")
+        self.question_el = document.getElementById("questionText")
+        self.options_container = document.getElementById("optionsList")
+        self.feedback_el = document.getElementById("feedbackArea")
+        
+        self.next_btn = document.getElementById("nextBtn")
+        self.restart_btn = document.getElementById("restartBtn")
+
+        # Setup Button Events in Python
+        self.next_btn.addEventListener("click", create_proxy(self.next_question))
+        self.restart_btn.addEventListener("click", create_proxy(self.restart_quiz))
+
+    def start(self):
+        # Hide loading screen and show active quiz
+        self.loading_screen.classList.add("hidden")
+        self.quiz_screen.classList.remove("hidden")
+        self.load_question()
+
+    def load_question(self):
+        self.answered = False
+        self.feedback_el.textContent = ""
+        self.next_btn.classList.add("hidden")
+
+        q = self.questions[self.current_index]
+        total = len(self.questions)
+        self.progress_el.textContent = f"Question {self.current_index + 1} of {total}"
+        self.question_el.textContent = q["prompt"]
+
+        # Clear existing options
+        self.options_container.innerHTML = ""
+
+        # Render options dynamically using Python loop
+        for idx, option_text in enumerate(q["options"]):
+            btn = document.createElement("button")
+            btn.className = "option-btn py-3 px-4 rounded-lg text-left text-sm font-semibold w-full"
+            btn.textContent = option_text
+            
+            # Attach Python handler to each button click
+            handler = create_proxy(lambda evt, index=idx, button=btn: self.select_option(index, button))
+            btn.addEventListener("click", handler)
+            self.options_container.appendChild(btn)
+
+    def select_option(self, selected_index, selected_btn):
+        if self.answered:
+            return
+        self.answered = True
+
+        q = self.questions[self.current_index]
+        buttons = self.options_container.getElementsByClassName("option-btn")
+
+        # Disable all buttons once selected
+        for btn in buttons:
+            btn.disabled = True
+
+        # Python Answer Checking
+        if selected_index == q["answer"]:
+            selected_btn.classList.add("correct")
+            self.feedback_el.textContent = "Correct! 🎉"
+            self.feedback_el.style.color = "var(--accent-green)"
+            self.score += 1
+        else:
+            selected_btn.classList.add("incorrect")
+            buttons[q["answer"]].classList.add("correct")
+            correct_option_text = q["options"][q["answer"]]
+            self.feedback_el.textContent = f"Incorrect. Correct answer was: {correct_option_text}"
+            self.feedback_el.style.color = "var(--danger)"
+
+        # Show next button or complete quiz
+        if self.current_index < len(self.questions) - 1:
+            self.next_btn.classList.remove("hidden")
+        else:
+            from pyodide.ffi import create_once_callable
+            from js import setTimeout
+            setTimeout(create_once_callable(self.show_results), 1600)
+
+    def next_question(self, event=None):
+        self.current_index += 1
+        self.load_question()
+
+    def calculate_grade(self, percentage):
+        if percentage >= 80:
+            return "A+ (Excellent!)"
+        elif percentage >= 60:
+            return "A (Good Job!)"
+        elif percentage >= 40:
+            return "B (Pass)"
+        else:
+            return "C (Keep Practicing!)"
+
+    def show_results(self):
+        self.quiz_screen.classList.add("hidden")
+        self.results_screen.classList.remove("hidden")
+
+        total = len(self.questions)
+        percentage = (self.score / total) * 100
+        grade = self.calculate_grade(percentage)
+
+        document.getElementById("finalScore").textContent = f"{self.score} / {total}"
+        document.getElementById("finalPercentage").textContent = f"{percentage:.0f}%"
+        document.getElementById("finalGrade").textContent = grade
+
+    def restart_quiz(self, event=None):
+        self.current_index = 0
+        self.score = 0
+        self.results_screen.classList.add("hidden")
+        self.quiz_screen.classList.remove("hidden")
+        self.load_question()
+
+# Instantiate and launch Python application
+app = PythonQuizApp()
+app.start()
+</script>
+
+</body>
+</html>
